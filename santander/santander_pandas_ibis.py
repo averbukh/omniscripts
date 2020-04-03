@@ -245,10 +245,10 @@ def ml(ml_data, target, ml_keys, ml_score_keys):
 
     if target == "target0":
         # Ibis:
-        x_train.to_csv("/localdisk/maverbuk/df/x_train_santander_ibis.csv", index = False, header = True, float_format = '{:.24f}')
-        y_train.to_csv("/localdisk/maverbuk/df/y_train_santander_ibis.csv", index = False, header = True, float_format = '{:.24f}')
-        x_test.to_csv("/localdisk/maverbuk/df/x_test_santander_ibis.csv", index = False, header = True, float_format = '{:.24f}')
-        y_test.to_csv("/localdisk/maverbuk/df/y_test_santander_ibis.csv", index = False, header = True, float_format = '{:.24f}')
+        x_train.to_csv("/localdisk/maverbuk/df/x_train_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
+        y_train.to_csv("/localdisk/maverbuk/df/y_train_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
+        x_test.to_csv("/localdisk/maverbuk/df/x_test_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
+        y_test.to_csv("/localdisk/maverbuk/df/y_test_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
 
     t0 = timer()
     training_dmat_part = xgboost.DMatrix(data=x_train, label=y_train)
