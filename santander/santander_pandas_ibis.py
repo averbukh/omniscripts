@@ -377,8 +377,6 @@ def ml(ml_data, target, ml_keys, ml_score_keys):
 
 def run_benchmark(parameters):
 
-    pandas_original()
-
     ignored_parameters = {
         "dfiles_num": parameters["dfiles_num"],
         "gpu_memory": parameters["gpu_memory"],
@@ -473,6 +471,8 @@ def run_benchmark(parameters):
             compare_result = compare_dataframes(
                 ibis_dfs=[ml_data_ibis], pandas_dfs=[ml_data], sort_cols=cols_to_sort, drop_cols=[]
             )
+
+        pandas_original()
 
         return {"ETL": [etl_times_ibis, etl_times], "ML": [ml_times_ibis, ml_times]}
     except Exception:
