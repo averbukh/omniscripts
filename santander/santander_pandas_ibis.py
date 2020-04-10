@@ -24,6 +24,11 @@ def pandas_original():
     import pandas as pd
     import xgboost as xgb
 
+    global x_train_pandas_original
+    global y_train_pandas_original
+    global x_valid_pandas_original
+    global y_valid_pandas_original
+
     PATH = '/localdisk/benchmark_datasets/santander'
 
     train_pd = pd.read_csv('%s/train.csv'%PATH)
@@ -76,9 +81,39 @@ def pandas_original():
     score_mse = mse(y_valid_pandas_original, yp)
     score_cod = cod(y_valid_pandas_original, yp)
 
-    print('Scores: ')
+    print('[pandas_original] Scores: ')
     print('  mse = ', score_mse)
     print('  cod = ', score_cod)
+
+def compare_with_pandas_original(title, pandas_df, ibis_df):
+    print('[compare_with_pandas_original]', title)
+
+    column_count = pandas_df.shape[1]
+    row_count = pandas_df.shape[0]
+
+    assert column_count == ibis_df.shape[1]
+    assert row_count == ibis_df.shape[0]
+
+    for pandas_col_name in pandas_df.columns():
+        pandas_col = pandas_df.loc[:, pandas_col_name]
+        ibis_col = ibis_df.loc[:, pandas_col_name]
+        print(pandas_col_name, ':', pandas_col.shape, '; ', ibis_col.shape)
+
+def compare_all_with_pandas_original():
+    global x_train_pandas_original
+    global y_train_pandas_original
+    global x_valid_pandas_original
+    global y_valid_pandas_original
+
+    global x_train_ibis_original
+    global y_train_ibis_original
+    global x_valid_ibis_original
+    global y_valid_ibis_original
+
+    y_train_ibis_original = y_train_ibis_original.rename(columns={"target0": "target"})
+    y_valid_ibis_original = y_valid_ibis_original.rename(columns={"target0": "target"})
+
+    compare_with_pandas_original('x_train_ibis_original vs x_train_ibis_original', x_train_pandas_original, x_train_ibis_original)
 
 # Dataset link
 # https://www.kaggle.com/c/santander-customer-transaction-prediction/data
@@ -326,12 +361,23 @@ def split_step(data, target):
 def ml(ml_data, target, ml_keys, ml_score_keys):
     import xgboost
 
+    global x_train_ibis_original
+    global y_train_ibis_original
+    global x_valid_ibis_original
+    global y_valid_ibis_original
+
     ml_times = {key: 0.0 for key in ml_keys}
     ml_scores = {key: 0.0 for key in ml_score_keys}
 
     (x_train, y_train, x_test, y_test), ml_times["t_train_test_split"] = split_step(
         ml_data, target
     )
+
+    if target == 'target0'
+        x_train_ibis_original = x_train
+        y_train_ibis_original = y_train
+        x_valid_ibis_original = x_test
+        y_valid_ibis_original = y_test
 
     t0 = timer()
     training_dmat_part = xgboost.DMatrix(data=x_train, label=y_train)
@@ -473,6 +519,7 @@ def run_benchmark(parameters):
             )
 
         pandas_original()
+        compare_all_with_pandas_original()
 
         return {"ETL": [etl_times_ibis, etl_times], "ML": [ml_times_ibis, ml_times]}
     except Exception:
