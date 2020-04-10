@@ -20,6 +20,66 @@ from utils import (
 
 warnings.filterwarnings("ignore")
 
+def pandas_original():
+    import pandas as pd
+    import xgboost as xgb
+
+    PATH = '/localdisk/benchmark_datasets/santander'
+
+    train_pd = pd.read_csv('%s/train.csv'%PATH)
+
+    for i in range(200):
+        col = 'var_%d'%i
+        var_count = train_pd.groupby(col).agg({col:'count'})
+
+        var_count.columns = ['%s_count'%col]
+        var_count = var_count.reset_index()
+
+        train_pd = train_pd.merge(var_count,on=col,how='left')
+
+    for i in range(200):
+        col = 'var_%d'%i
+
+        mask = train_pd['%s_count'%col]>1
+
+        train_pd.loc[mask,'%s_gt1'%col] = train_pd.loc[mask,col]
+
+    # train, test data split
+    train,valid = train_pd[:-10000],train_pd[-10000:]
+    x_train_pandas_original = train.drop(['target','ID_code'],axis=1)
+    y_train_pandas_original = train['target']
+    x_valid_pandas_original = valid.drop(['target','ID_code'],axis=1)
+    y_valid_pandas_original = valid['target']
+
+    xgb_params = {
+                'objective': 'binary:logistic',
+                'tree_method': 'hist',
+                'max_depth': 1,
+                'nthread':56,
+                'eta':0.1,
+                'silent':1,
+                'subsample':0.5,
+                'colsample_bytree': 0.05,
+                'eval_metric':'auc',
+    }
+    dtrain = xgb.DMatrix(data=x_train_pandas_original, label=y_train_pandas_original)
+    dvalid = xgb.DMatrix(data=x_valid_pandas_original, label=y_valid_pandas_original)
+
+    watchlist = [(dvalid, 'eval'), (dtrain, 'train')]
+    clf = xgb.train(xgb_params, dtrain=dtrain,
+                    num_boost_round=10000, evals=watchlist,
+                    early_stopping_rounds=30, maximize=True,
+                    verbose_eval=1000)
+
+    yp = clf.predict(dvalid)
+
+    score_mse = mse(y_valid_pandas_original, yp)
+    score_cod = cod(y_valid_pandas_original, yp)
+
+    print('Scores: ')
+    print('  mse = ', score_mse)
+    print('  cod = ', score_cod)
+
 # Dataset link
 # https://www.kaggle.com/c/santander-customer-transaction-prediction/data
 
@@ -316,6 +376,9 @@ def ml(ml_data, target, ml_keys, ml_score_keys):
 
 
 def run_benchmark(parameters):
+
+    pandas_original()
+
     ignored_parameters = {
         "dfiles_num": parameters["dfiles_num"],
         "gpu_memory": parameters["gpu_memory"],
