@@ -94,7 +94,7 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     assert column_count == ibis_df.shape[1]
     assert row_count == ibis_df.shape[0]
 
-    for pandas_col_name in pandas_df.columns():
+    for pandas_col_name in pandas_df.columns:
         pandas_col = pandas_df.loc[:, pandas_col_name]
         ibis_col = ibis_df.loc[:, pandas_col_name]
         print(pandas_col_name, ':', pandas_col.shape, '; ', ibis_col.shape)
