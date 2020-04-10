@@ -373,7 +373,7 @@ def ml(ml_data, target, ml_keys, ml_score_keys):
         ml_data, target
     )
 
-    if target == 'target0'
+    if target == 'target0':
         x_train_ibis_original = x_train
         y_train_ibis_original = y_train
         x_valid_ibis_original = x_test
