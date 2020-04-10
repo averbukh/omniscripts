@@ -243,17 +243,6 @@ def ml(ml_data, target, ml_keys, ml_score_keys):
 
     (x_train, y_train, x_test, y_test), ml_times["t_train_test_split"] = split_step(ml_data, target)
 
-    if target == "target0":
-        # Ibis:
-        # x_train.to_csv("/localdisk/maverbuk/df/x_train_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
-        # y_train.to_csv("/localdisk/maverbuk/df/y_train_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
-        # x_test.to_csv("/localdisk/maverbuk/df/x_test_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
-        # y_test.to_csv("/localdisk/maverbuk/df/y_test_santander_ibis.csv", index = False, header = True, float_format = '%.24f')
-        x_train.to_csv("/localdisk/maverbuk/df/x_train_santander_ibis_nofmt.csv", index = False, header = True)
-        y_train.to_csv("/localdisk/maverbuk/df/y_train_santander_ibis_nofmt.csv", index = False, header = True)
-        x_test.to_csv("/localdisk/maverbuk/df/x_test_santander_ibis_nofmt.csv", index = False, header = True)
-        y_test.to_csv("/localdisk/maverbuk/df/y_test_santander_ibis_nofmt.csv", index = False, header = True)
-
     t0 = timer()
     training_dmat_part = xgboost.DMatrix(data=x_train, label=y_train)
     testing_dmat_part = xgboost.DMatrix(data=x_test, label=y_test)
