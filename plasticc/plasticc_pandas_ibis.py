@@ -36,11 +36,7 @@ def skew_workaround(table):
 
     # change column name: 'skew' -> 'flux_skew'
     skew = (
-        n
-        * (n - 1).sqrt()
-        / (n - 2)
-        * (s3 - 3 * m * s2 + 2 * m * m * s1)
-        / (s2 - m * s1).pow(1.5)
+        n * (n - 1).sqrt() / (n - 2) * (s3 - 3 * m * s2 + 2 * m * m * s1) / (s2 - m * s1).pow(1.5)
     ).name("flux_skew")
     table = table.mutate(skew)
 
@@ -84,9 +80,7 @@ def etl_cpu_ibis(table, table_meta, etl_times):
     # skew compute
     table = skew_workaround(table)
 
-    table = table.drop(
-        ["mjd_max", "mjd_min", "flux_count", "flux_sum1", "flux_sum2", "flux_sum3"]
-    )
+    table = table.drop(["mjd_max", "mjd_min", "flux_count", "flux_sum1", "flux_sum2", "flux_sum3"])
 
     table_meta = table_meta.drop(["ra", "decl", "gal_l", "gal_b"])
 
@@ -140,9 +134,7 @@ def etl_cpu_pandas(df, df_meta, etl_times):
 
     agg_df["flux_diff"] = agg_df["flux_max"] - agg_df["flux_min"]
     agg_df["flux_dif2"] = agg_df["flux_diff"] / agg_df["flux_mean"]
-    agg_df["flux_w_mean"] = (
-        agg_df["flux_by_flux_ratio_sq_sum"] / agg_df["flux_ratio_sq_sum"]
-    )
+    agg_df["flux_w_mean"] = agg_df["flux_by_flux_ratio_sq_sum"] / agg_df["flux_ratio_sq_sum"]
     agg_df["flux_dif3"] = agg_df["flux_diff"] / agg_df["flux_w_mean"]
     agg_df["mjd_diff"] = agg_df["mjd_max"] - agg_df["mjd_min"]
 
@@ -170,85 +162,141 @@ def load_data_ibis(
     validation,
     dtypes,
     meta_dtypes,
+    import_mode,
 ):
-    omnisci_server_worker.create_database(
-        database_name, delete_if_exists=delete_old_database
-    )
+    omnisci_server_worker.create_database(database_name, delete_if_exists=delete_old_database)
 
-    t_import_pandas, t_import_ibis = 0.0, 0.0
+    t_readcsv = 0.0
 
     # Create tables and import data
     if create_new_table:
-        # create table #1
+        import ibis
+
         training_file = "%s/training_set.csv" % dataset_path
-        t_import_pandas_1, t_import_ibis_1 = omnisci_server_worker.import_data_by_ibis(
-            table_name="training",
-            data_files_names=training_file,
-            files_limit=1,
-            columns_names=list(dtypes.keys()),
-            columns_types=list(dtypes.values()),
-            header=0,
-            nrows=None,
-            compression_type=None,
-            validation=validation,
-        )
-
-        # create table #2
-        test_file = "%s/test_set.csv" % dataset_path
-        t_import_pandas_2, t_import_ibis_2 = omnisci_server_worker.import_data_by_ibis(
-            table_name="test",
-            data_files_names=test_file,
-            files_limit=1,
-            columns_names=list(dtypes.keys()),
-            columns_types=list(dtypes.values()),
-            header=0,
-            nrows=None,
-            compression_type=None,
-            skiprows=skip_rows,
-            validation=validation,
-        )
-
-        # create table #3
+        # COPY FROM doesn't have skip_rows option
+        test_file = "%s/test_set_skiprows.csv" % dataset_path
         training_meta_file = "%s/training_set_metadata.csv" % dataset_path
-        t_import_pandas_3, t_import_ibis_3 = omnisci_server_worker.import_data_by_ibis(
-            table_name="training_meta",
-            data_files_names=training_meta_file,
-            files_limit=1,
-            columns_names=list(meta_dtypes.keys()),
-            columns_types=list(meta_dtypes.values()),
-            header=0,
-            nrows=None,
-            compression_type=None,
-            validation=validation,
-        )
+        test_meta_file = "%s/test_set_metadata.csv" % dataset_path
+
+        schema = ibis.Schema(names=dtypes.keys(), types=dtypes.values())
+        meta_schema = ibis.Schema(names=meta_dtypes.keys(), types=meta_dtypes.values())
 
         target = meta_dtypes.pop("target")
-
-        # create table #4
-        test_meta_file = "%s/test_set_metadata.csv" % dataset_path
-        t_import_pandas_4, t_import_ibis_4 = omnisci_server_worker.import_data_by_ibis(
-            table_name="test_meta",
-            data_files_names=test_meta_file,
-            files_limit=1,
-            columns_names=list(meta_dtypes.keys()),
-            columns_types=list(meta_dtypes.values()),
-            header=0,
-            nrows=None,
-            compression_type=None,
-            validation=validation,
+        meta_schema_without_target = ibis.Schema(
+            names=meta_dtypes.keys(), types=meta_dtypes.values()
         )
         meta_dtypes["target"] = target
 
-        t_import_pandas = (
-            t_import_pandas_1
-            + t_import_pandas_2
-            + t_import_pandas_3
-            + t_import_pandas_4
-        )
-        t_import_ibis = (
-            t_import_ibis_1 + t_import_ibis_2 + t_import_ibis_3 + t_import_ibis_4
-        )
-        print(f"import times: pandas - {t_import_pandas}s, ibis - {t_import_ibis}s")
+        # TODO we should specify this through external command line option
+        fragment_size = 32000000
+
+        if import_mode == "copy-from":
+            # create tables
+            omnisci_server_worker.create_table(
+                table_name="training",
+                schema=schema,
+                database=database_name,
+                fragment_size=fragment_size,
+            )
+            omnisci_server_worker.create_table(
+                table_name="test",
+                schema=schema,
+                database=database_name,
+                fragment_size=fragment_size,
+            )
+            omnisci_server_worker.create_table(
+                table_name="training_meta",
+                schema=meta_schema,
+                database=database_name,
+                fragment_size=fragment_size,
+            )
+            omnisci_server_worker.create_table(
+                table_name="test_meta",
+                schema=meta_schema_without_target,
+                database=database_name,
+                fragment_size=fragment_size,
+            )
+
+            # get tables
+            db = omnisci_server_worker.database(database_name)
+            training_table = db.table("training")
+            test_table = db.table("test")
+            training_meta_table = db.table("training_meta")
+            test_meta_table = db.table("test_meta")
+
+            # measuring time of reading
+            t0 = timer()
+            training_table.read_csv(training_file, header=True, quotechar="", delimiter=",")
+            test_table.read_csv(test_file, header=True, quotechar="", delimiter=",")
+            training_meta_table.read_csv(
+                training_meta_file, header=True, quotechar="", delimiter=","
+            )
+            test_meta_table.read_csv(test_meta_file, header=True, quotechar="", delimiter=",")
+            t_readcsv = round((timer() - t0) * 1000)
+
+        elif import_mode == "pandas":
+            general_options = {
+                "files_limit": 1,
+                "columns_names": list(dtypes.keys()),
+                "columns_types": list(dtypes.values()),
+                "header": 0,
+                "nrows": None,
+                "compression_type": None,
+                "validation": validation,
+            }
+
+            # create table #1
+            t_import_pandas_1, t_import_ibis_1 = omnisci_server_worker.import_data_by_ibis(
+                table_name="training",
+                data_files_names="%s/training_set.csv" % dataset_path,
+                **general_options,
+            )
+
+            # create table #2
+            t_import_pandas_2, t_import_ibis_2 = omnisci_server_worker.import_data_by_ibis(
+                table_name="test",
+                data_files_names="%s/test_set.csv" % dataset_path,
+                skiprows=skip_rows,
+                **general_options,
+            )
+
+            # create table #3
+            t_import_pandas_3, t_import_ibis_3 = omnisci_server_worker.import_data_by_ibis(
+                table_name="training_meta",
+                data_files_names="%s/training_set_metadata.csv" % dataset_path,
+                **general_options,
+            )
+
+            target = meta_dtypes.pop("target")
+            general_options["columns_names"] = list(meta_dtypes.keys())
+            general_options["columns_types"] = list(meta_dtypes.values())
+
+            # create table #4
+            t_import_pandas_4, t_import_ibis_4 = omnisci_server_worker.import_data_by_ibis(
+                table_name="test_meta",
+                data_files_names="%s/test_set_metadata.csv" % dataset_path,
+                **general_options,
+            )
+            meta_dtypes["target"] = target
+
+            t_import_pandas = (
+                t_import_pandas_1 + t_import_pandas_2 + t_import_pandas_3 + t_import_pandas_4
+            )
+            t_import_ibis = t_import_ibis_1 + t_import_ibis_2 + t_import_ibis_3 + t_import_ibis_4
+            print(f"import times: pandas - {t_import_pandas}s, ibis - {t_import_ibis}s")
+            t_readcsv = round((t_import_pandas + t_import_ibis) * 1000)
+
+        elif import_mode == "fsi":
+            t0 = timer()
+            omnisci_server_worker._conn.create_table_from_csv("training", training_file, schema)
+            omnisci_server_worker._conn.create_table_from_csv("test", test_file, schema)
+            omnisci_server_worker._conn.create_table_from_csv(
+                "training_meta", training_meta_file, meta_schema
+            )
+            omnisci_server_worker._conn.create_table_from_csv(
+                "test_meta", test_meta_file, meta_schema_without_target
+            )
+            t_readcsv = round((timer() - t0) * 1000)
 
     # Second connection - this is ibis's ipc connection for DML
     omnisci_server_worker.connect_to_server(database_name, ipc=ipc_connection)
@@ -265,7 +313,7 @@ def load_data_ibis(
         training_meta_table,
         test_table,
         test_meta_table,
-        t_import_pandas + t_import_ibis,
+        t_readcsv,
     )
 
 
@@ -279,9 +327,7 @@ def load_data_pandas(dataset_path, skip_rows, dtypes, meta_dtypes):
         skiprows=skip_rows,
     )
 
-    train_meta = pd.read_csv(
-        "%s/training_set_metadata.csv" % dataset_path, dtype=meta_dtypes
-    )
+    train_meta = pd.read_csv("%s/training_set_metadata.csv" % dataset_path, dtype=meta_dtypes)
     target = meta_dtypes.pop("target")
     test_meta = pd.read_csv("%s/test_set_metadata.csv" % dataset_path, dtype=meta_dtypes)
     meta_dtypes["target"] = target
@@ -321,10 +367,12 @@ def etl_all_ibis(
     dtypes,
     meta_dtypes,
     etl_keys,
+    import_mode,
 ):
     print("Ibis version")
     etl_times = {key: 0.0 for key in etl_keys}
 
+    print("importing data ...")
     train, train_meta, test, test_meta, etl_times["t_readcsv"] = load_data_ibis(
         dataset_path=dataset_path,
         database_name=database_name,
@@ -336,10 +384,13 @@ def etl_all_ibis(
         validation=validation,
         dtypes=dtypes,
         meta_dtypes=meta_dtypes,
+        import_mode=import_mode,
     )
 
     # update etl_times
+    print("preprocessing train data ...")
     train_final = etl_cpu_ibis(train, train_meta, etl_times)
+    print("preprocessing test data ...")
     test_final = etl_cpu_ibis(test, test_meta, etl_times)
 
     return train_final, test_final, etl_times
@@ -351,10 +402,7 @@ def etl_all_pandas(dataset_path, skip_rows, dtypes, meta_dtypes, etl_keys):
 
     t0 = timer()
     train, train_meta, test, test_meta = load_data_pandas(
-        dataset_path=dataset_path,
-        skip_rows=skip_rows,
-        dtypes=dtypes,
-        meta_dtypes=meta_dtypes,
+        dataset_path=dataset_path, skip_rows=skip_rows, dtypes=dtypes, meta_dtypes=meta_dtypes,
     )
     etl_times["t_readcsv"] += round((timer() - t0) * 1000)
 
@@ -385,17 +433,17 @@ def multi_weighted_logloss(y_true, y_preds, classes, class_weights):
 
 
 def xgb_multi_weighted_logloss(y_predicted, y_true, classes, class_weights):
-    loss = multi_weighted_logloss(
-        y_true.get_label(), y_predicted, classes, class_weights
-    )
+    loss = multi_weighted_logloss(y_true.get_label(), y_predicted, classes, class_weights)
     return "wloss", loss
 
 
 def ml(train_final, test_final, ml_keys):
     ml_times = {key: 0.0 for key in ml_keys}
 
-    (X_train, y_train, X_test, y_test, Xt, classes, class_weights), ml_times["t_train_test_split"] \
-        = split_step(train_final, test_final)
+    (
+        (X_train, y_train, X_test, y_test, Xt, classes, class_weights),
+        ml_times["t_train_test_split"],
+    ) = split_step(train_final, test_final)
 
     cpu_params = {
         "objective": "multi:softprob",
@@ -408,9 +456,7 @@ def ml(train_final, test_final, ml_keys):
         "colsample_bytree": 0.7,
     }
 
-    func_loss = partial(
-        xgb_multi_weighted_logloss, classes=classes, class_weights=class_weights
-    )
+    func_loss = partial(xgb_multi_weighted_logloss, classes=classes, class_weights=class_weights)
 
     t_ml_start = timer()
     dtrain = xgb.DMatrix(data=X_train, label=y_train)
@@ -516,6 +562,9 @@ def run_benchmark(parameters):
 
         etl_times_ibis = None
         ml_times_ibis = None
+        etl_times = None
+        ml_times = None
+
         if not parameters["no_ibis"]:
             train_final_ibis, test_final_ibis, etl_times_ibis = etl_all_ibis(
                 dataset_path=parameters["data_file"],
@@ -529,15 +578,16 @@ def run_benchmark(parameters):
                 dtypes=dtypes,
                 meta_dtypes=meta_dtypes,
                 etl_keys=etl_keys,
+                import_mode=parameters["import_mode"],
             )
 
-            print_results(results=etl_times_ibis, backend="Ibis", unit='ms')
+            print_results(results=etl_times_ibis, backend="Ibis", unit="ms")
             etl_times_ibis["Backend"] = "Ibis"
 
             if not parameters["no_ml"]:
                 print("using ml with dataframes from Ibis")
                 ml_times_ibis = ml(train_final_ibis, test_final_ibis, ml_keys)
-                print_results(results=ml_times_ibis, backend="Ibis", unit='ms')
+                print_results(results=ml_times_ibis, backend="Ibis", unit="ms")
                 ml_times_ibis["Backend"] = "Ibis"
 
         train_final, test_final, etl_times = etl_all_pandas(
@@ -548,18 +598,19 @@ def run_benchmark(parameters):
             etl_keys=etl_keys,
         )
 
-        print_results(results=etl_times, backend=parameters["pandas_mode"], unit='ms')
+        print_results(results=etl_times, backend=parameters["pandas_mode"], unit="ms")
         etl_times["Backend"] = parameters["pandas_mode"]
 
         if not parameters["no_ml"]:
             print("using ml with dataframes from Pandas")
             ml_times = ml(train_final, test_final, ml_keys)
-            print_results(results=ml_times, backend=parameters["pandas_mode"], unit='ms')
+            print_results(results=ml_times, backend=parameters["pandas_mode"], unit="ms")
             ml_times["Backend"] = parameters["pandas_mode"]
 
         if parameters["validation"]:
-            #TODO use compare_dataframes
-            exit(1)
+            compare_dataframes(
+                ibis_dfs=[train_final_ibis, test_final_ibis], pandas_dfs=[train_final, test_final],
+            )
 
         return {"ETL": [etl_times_ibis, etl_times], "ML": [ml_times_ibis, ml_times]}
     except Exception:

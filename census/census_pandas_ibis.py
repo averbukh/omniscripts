@@ -101,30 +101,66 @@ def etl_ibis(
     ipc_connection,
     validation,
     etl_keys,
+    import_mode,
 ):
     import ibis
 
     etl_times = {key: 0.0 for key in etl_keys}
 
-    omnisci_server_worker.create_database(
-        database_name, delete_if_exists=delete_old_database
-    )
+    omnisci_server_worker.create_database(database_name, delete_if_exists=delete_old_database)
 
     # Create table and import data
     if create_new_table:
-        # Datafiles import
-        t_import_pandas, t_import_ibis = omnisci_server_worker.import_data_by_ibis(
-            table_name=table_name,
-            data_files_names=filename,
-            files_limit=1,
-            columns_names=columns_names,
-            columns_types=columns_types,
-            header=0,
-            nrows=None,
-            compression_type="gzip",
-            validation=validation,
-        )
-    etl_times["t_readcsv"] = t_import_pandas + t_import_ibis
+        schema_table = ibis.Schema(names=columns_names, types=columns_types)
+        if import_mode == "copy-from":
+            # Create table and import data for ETL queries
+            omnisci_server_worker.create_table(
+                table_name=table_name, schema=schema_table, database=database_name,
+            )
+            table_import = omnisci_server_worker.database(database_name).table(table_name)
+
+            t0 = timer()
+            table_import.read_csv(filename, header=True, quotechar="", delimiter=",")
+            etl_times["t_readcsv"] = round((timer() - t0) * 1000)
+
+        elif import_mode == "pandas":
+            # Datafiles import
+            t_import_pandas, t_import_ibis = omnisci_server_worker.import_data_by_ibis(
+                table_name=table_name,
+                data_files_names=filename,
+                files_limit=1,
+                columns_names=columns_names,
+                columns_types=columns_types,
+                header=0,
+                nrows=None,
+                compression_type="gzip" if filename.endswith("gz") else None,
+                validation=validation,
+            )
+            etl_times["t_readcsv"] = round((t_import_pandas + t_import_ibis) * 1000)
+
+        elif import_mode == "fsi":
+            try:
+                unzip_name = None
+                if filename.endswith("gz"):
+                    import gzip
+
+                    unzip_name = "/tmp/census-fsi.csv"
+
+                    with gzip.open(filename, "rb") as gz_input:
+                        with open(unzip_name, "wb") as output:
+                            output.write(gz_input.read())
+
+                t0 = timer()
+                omnisci_server_worker._conn.create_table_from_csv(
+                    table_name, unzip_name or filename, schema_table
+                )
+                etl_times["t_readcsv"] = round((timer() - t0) * 1000)
+
+            finally:
+                if filename.endswith("gz"):
+                    import os
+
+                    os.remove(unzip_name)
 
     # Second connection - this is ibis's ipc connection for DML
     omnisci_server_worker.connect_to_server(database_name, ipc=ipc_connection)
@@ -159,7 +195,7 @@ def etl_ibis(
         "SEX_HEAD",
     ]
 
-    if validation:
+    if import_mode == "pandas" and validation:
         keep_cols.append("id")
 
     table = table[keep_cols]
@@ -187,6 +223,9 @@ def etl_ibis(
 
     df = table.execute()
 
+    if import_mode == "pandas" and validation:
+        df.index = df["id"].values
+
     # here we use pandas to split table
     y = df["EDUC"]
     X = df.drop(["EDUC", "CPI99"], axis=1)
@@ -205,9 +244,7 @@ def ml(X, y, random_state, n_runs, test_size, optimizer, ml_keys, ml_score_keys)
         print("Stock sklearn is used")
         import sklearn.linear_model as lm
     else:
-        print(
-            f"Intel optimized and stock sklearn are supported. {optimizer} can't be recognized"
-        )
+        print(f"Intel optimized and stock sklearn are supported. {optimizer} can't be recognized")
         sys.exit(1)
 
     clf = lm.Ridge()
@@ -221,7 +258,7 @@ def ml(X, y, random_state, n_runs, test_size, optimizer, ml_keys, ml_score_keys)
         (X_train, y_train, X_test, y_test), split_time = split(
             X, y, test_size=test_size, random_state=random_state
         )
-        ml_times["t_train_test_split"] = split_time
+        ml_times["t_train_test_split"] += split_time
         random_state += 777
 
         t0 = timer()
@@ -379,7 +416,10 @@ def run_benchmark(parameters):
         ml_times_ibis = None
         etl_times = None
         ml_times = None
-        
+
+        if not parameters["pandas_mode"] and parameters["validation"]:
+            print("WARNING: validation working only for '-import_mode pandas'")
+
         if not parameters["no_ibis"]:
             df_ibis, X_ibis, y_ibis, etl_times_ibis = etl_ibis(
                 filename=parameters["data_file"],
@@ -393,9 +433,10 @@ def run_benchmark(parameters):
                 ipc_connection=parameters["ipc_connection"],
                 validation=parameters["validation"],
                 etl_keys=etl_keys,
+                import_mode=parameters["import_mode"],
             )
 
-            print_results(results=etl_times_ibis, backend="Ibis", unit='ms')
+            print_results(results=etl_times_ibis, backend="Ibis", unit="ms")
             etl_times_ibis["Backend"] = "Ibis"
 
             if not parameters["no_ml"]:
@@ -409,7 +450,7 @@ def run_benchmark(parameters):
                     ml_keys=ml_keys,
                     ml_score_keys=ml_score_keys,
                 )
-                print_results(results=ml_times_ibis, backend="Ibis", unit='ms')
+                print_results(results=ml_times_ibis, backend="Ibis", unit="ms")
                 ml_times_ibis["Backend"] = "Ibis"
                 print_results(results=ml_scores_ibis, backend="Ibis")
                 ml_scores_ibis["Backend"] = "Ibis"
@@ -421,7 +462,7 @@ def run_benchmark(parameters):
             etl_keys=etl_keys,
         )
 
-        print_results(results=etl_times, backend=parameters["pandas_mode"], unit='ms')
+        print_results(results=etl_times, backend=parameters["pandas_mode"], unit="ms")
         etl_times["Backend"] = parameters["pandas_mode"]
 
         if not parameters["no_ml"]:
@@ -434,18 +475,16 @@ def run_benchmark(parameters):
                 optimizer=parameters["optimizer"],
                 ml_keys=ml_keys,
                 ml_score_keys=ml_score_keys,
-
             )
-            print_results(results=ml_times, backend=parameters["pandas_mode"], unit='ms')
+            print_results(results=ml_times, backend=parameters["pandas_mode"], unit="ms")
             ml_times["Backend"] = parameters["pandas_mode"]
             print_results(results=ml_scores, backend=parameters["pandas_mode"])
             ml_scores["Backend"] = parameters["pandas_mode"]
 
-        if parameters["validation"]:
-            # this should work
+        if parameters["pandas_mode"] and parameters["validation"]:
+            # this should work only for pandas mode
             compare_dataframes(
-                ibis_dfs=(X_ibis, y_ibis),
-                pandas_dfs=(X, y),
+                ibis_dfs=(X_ibis, y_ibis), pandas_dfs=(X, y),
             )
 
         return {"ETL": [etl_times_ibis, etl_times], "ML": [ml_times_ibis, ml_times]}

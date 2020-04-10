@@ -10,7 +10,7 @@ import mysql.connector
 from report import DbReport
 from server import OmnisciServer
 from server_worker import OmnisciServerWorker
-from utils import find_free_port, str_arg_to_bool
+from utils import find_free_port, KeyValueListParser, str_arg_to_bool
 
 
 def main():
@@ -27,7 +27,11 @@ def main():
     parser._action_groups.append(optional)
 
     required.add_argument(
-        "-bench_name", dest="bench_name", choices=benchmarks, help="Benchmark name.", required=True,
+        "-bench_name",
+        dest="bench_name",
+        choices=benchmarks,
+        help="Benchmark name.",
+        required=True,
     )
     required.add_argument(
         "-data_file", dest="data_file", help="A datafile that should be loaded.", required=True,
@@ -61,6 +65,12 @@ def main():
         default=False,
         type=str_arg_to_bool,
         help="validate queries results (by comparison with Pandas queries results).",
+    )
+    optional.add_argument(
+        "-import_mode",
+        dest="import_mode",
+        default="fsi",
+        help="measure 'COPY FROM' import, FSI import, import through pandas",
     )
     optional.add_argument(
         "-optimizer",
@@ -106,17 +116,10 @@ def main():
     )
     # MySQL database parameters
     optional.add_argument(
-        "-db_server",
-        dest="db_server",
-        default="localhost",
-        help="Host name of MySQL server.",
+        "-db_server", dest="db_server", default="localhost", help="Host name of MySQL server.",
     )
     optional.add_argument(
-        "-db_port",
-        dest="db_port",
-        default=3306,
-        type=int,
-        help="Port number of MySQL server.",
+        "-db_port", dest="db_port", default=3306, type=int, help="Port number of MySQL server.",
     )
     optional.add_argument(
         "-db_user",
@@ -180,10 +183,7 @@ def main():
         help="Calcite port number to run omnisci_server on.",
     )
     optional.add_argument(
-        "-user",
-        dest="user",
-        default="admin",
-        help="User name to use on omniscidb server.",
+        "-user", dest="user", default="admin", help="User name to use on omniscidb server.",
     )
     optional.add_argument(
         "-password",
@@ -209,6 +209,43 @@ def main():
         default=True,
         type=str_arg_to_bool,
         help="Table name name to use in omniscidb server.",
+    )
+    optional.add_argument(
+        "-debug_timer",
+        dest="debug_timer",
+        default=False,
+        type=str_arg_to_bool,
+        help="Enable fine-grained query execution timers for debug.",
+    )
+    optional.add_argument(
+        "-columnar_output",
+        dest="columnar_output",
+        default=True,
+        type=str_arg_to_bool,
+        help="Allows OmniSci Core to directly materialize intermediate projections \
+            and the final ResultSet in Columnar format where appropriate.",
+    )
+    optional.add_argument(
+        "-lazy_fetch",
+        dest="lazy_fetch",
+        default=None,
+        type=str_arg_to_bool,
+        help="[lazy_fetch help message]",
+    )
+    optional.add_argument(
+        "-multifrag_rs",
+        dest="multifrag_rs",
+        default=None,
+        type=str_arg_to_bool,
+        help="[multifrag_rs help message]",
+    )
+    optional.add_argument(
+        "-omnisci_run_kwargs",
+        dest="omnisci_run_kwargs",
+        default={},
+        metavar="KEY1=VAL1,KEY2=VAL2...",
+        action=KeyValueListParser,
+        help="options to start omnisci server",
     )
     # Additional information
     optional.add_argument(
@@ -274,12 +311,18 @@ def main():
                 database_name=args.database_name,
                 user=args.user,
                 password=args.password,
+                debug_timer=args.debug_timer,
+                columnar_output=args.columnar_output,
+                lazy_fetch=args.lazy_fetch,
+                multifrag_rs=args.multifrag_rs,
+                omnisci_run_kwargs=args.omnisci_run_kwargs,
             )
 
             parameters["database_name"] = args.database_name
             parameters["table"] = args.table
             parameters["dnd"] = args.dnd
             parameters["dni"] = args.dni
+            parameters["import_mode"] = args.import_mode
 
         etl_results = []
         ml_results = []
@@ -322,31 +365,40 @@ def main():
                         db=args.db_name,
                     )
 
-                    reporting_init_fields = {"OmnisciCommitHash":args.commit_omnisci,
-                                             "IbisCommitHash": args.commit_ibis
-                                            }
+                    reporting_init_fields = {
+                        "OmnisciCommitHash": args.commit_omnisci,
+                        "IbisCommitHash": args.commit_ibis,
+                    }
 
-                    reporting_fields_benchmark_etl = {x: "VARCHAR(500) NOT NULL" for x in etl_results[0]}
+                    reporting_fields_benchmark_etl = {
+                        x: "VARCHAR(500) NOT NULL" for x in etl_results[0]
+                    }
                     if len(etl_results) is not 1:
-                        reporting_fields_benchmark_etl.update({x: "VARCHAR(500) NOT NULL" for x in etl_results[1]})
+                        reporting_fields_benchmark_etl.update(
+                            {x: "VARCHAR(500) NOT NULL" for x in etl_results[1]}
+                        )
 
                     db_reporter_etl = DbReport(
                         db,
                         args.db_table_etl,
                         reporting_fields_benchmark_etl,
-                        reporting_init_fields
+                        reporting_init_fields,
                     )
 
                     if len(ml_results) is not 0:
-                        reporting_fields_benchmark_ml = {x: "VARCHAR(500) NOT NULL" for x in ml_results[0]}
+                        reporting_fields_benchmark_ml = {
+                            x: "VARCHAR(500) NOT NULL" for x in ml_results[0]
+                        }
                         if len(ml_results) is not 1:
-                            reporting_fields_benchmark_ml.update({x: "VARCHAR(500) NOT NULL" for x in ml_results[1]})
+                            reporting_fields_benchmark_ml.update(
+                                {x: "VARCHAR(500) NOT NULL" for x in ml_results[1]}
+                            )
 
                         db_reporter_ml = DbReport(
                             db,
                             args.db_table_ml,
                             reporting_fields_benchmark_ml,
-                            reporting_init_fields
+                            reporting_init_fields,
                         )
 
                 for result_etl in etl_results:

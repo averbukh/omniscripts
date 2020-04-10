@@ -6,7 +6,7 @@ import traceback
 
 from environment import CondaEnvironment
 from server import OmnisciServer
-from utils import combinate_requirements, find_free_port, str_arg_to_bool
+from utils import combinate_requirements, find_free_port, KeyValueListParser, str_arg_to_bool
 
 
 def main():
@@ -25,6 +25,7 @@ def main():
 
     possible_tasks = ["build", "test", "benchmark"]
     benchmarks = ["ny_taxi", "santander", "census", "plasticc"]
+
     # Task
     required.add_argument(
         "-task",
@@ -72,14 +73,12 @@ def main():
         default="3.7",
         help="File with ci requirements for conda env.",
     )
+
     # Ibis
     required.add_argument(
-        "-i",
-        "--ibis_path",
-        dest="ibis_path",
-        required=True,
-        help="Path to ibis directory.",
+        "-i", "--ibis_path", dest="ibis_path", required=True, help="Path to ibis directory.",
     )
+
     # Ibis tests
     optional.add_argument(
         "-expression",
@@ -89,12 +88,10 @@ def main():
         "classes. Example: 'test_other', while 'not test_method' matches those "
         "that don't contain 'test_method' in their names.",
     )
+
     # Omnisci server parameters
     omnisci.add_argument(
-        "-executable",
-        dest="executable",
-        required=True,
-        help="Path to omnisci_server executable.",
+        "-executable", dest="executable", required=True, help="Path to omnisci_server executable.",
     )
     omnisci.add_argument(
         "--omnisci_cwd",
@@ -125,10 +122,7 @@ def main():
         help="Calcite port number to run omnisci_server on.",
     )
     omnisci.add_argument(
-        "-user",
-        dest="user",
-        default="admin",
-        help="User name to use on omniscidb server.",
+        "-user", dest="user", default="admin", help="User name to use on omniscidb server.",
     )
     omnisci.add_argument(
         "-password",
@@ -153,8 +147,46 @@ def main():
         dest="ipc_connection",
         default=True,
         type=str_arg_to_bool,
-        help="Table name name to use in omniscidb server.",
+        help="Connection type for ETL operations",
     )
+    omnisci.add_argument(
+        "-debug_timer",
+        dest="debug_timer",
+        default=False,
+        type=str_arg_to_bool,
+        help="Enable fine-grained query execution timers for debug.",
+    )
+    omnisci.add_argument(
+        "-columnar_output",
+        dest="columnar_output",
+        default=True,
+        type=str_arg_to_bool,
+        help="Allows OmniSci Core to directly materialize intermediate projections \
+            and the final ResultSet in Columnar format where appropriate.",
+    )
+    omnisci.add_argument(
+        "-lazy_fetch",
+        dest="lazy_fetch",
+        default=None,
+        type=str_arg_to_bool,
+        help="[lazy_fetch help message]",
+    )
+    omnisci.add_argument(
+        "-multifrag_rs",
+        dest="multifrag_rs",
+        default=None,
+        type=str_arg_to_bool,
+        help="[multifrag_rs help message]",
+    )
+    omnisci.add_argument(
+        "-omnisci_run_kwargs",
+        dest="omnisci_run_kwargs",
+        default={},
+        metavar="KEY1=VAL1,KEY2=VAL2...",
+        action=KeyValueListParser,
+        help="options to start omnisci server",
+    )
+
     # Benchmark parameters
     benchmark.add_argument(
         "-bench_name", dest="bench_name", choices=benchmarks, help="Benchmark name.",
@@ -193,6 +225,12 @@ def main():
         help="validate queries results (by comparison with Pandas queries results).",
     )
     benchmark.add_argument(
+        "-import_mode",
+        dest="import_mode",
+        default="fsi",
+        help="you can choose: {copy-from, pandas, fsi}",
+    )
+    benchmark.add_argument(
         "-optimizer",
         choices=["intel", "stock"],
         dest="optimizer",
@@ -210,13 +248,13 @@ def main():
         choices=["Pandas", "Modin_on_ray", "Modin_on_dask", "Modin_on_python"],
         default="Pandas",
         help="Specifies which version of Pandas to use: "
-             "plain Pandas, Modin runing on Ray or on Dask",
+        "plain Pandas, Modin runing on Ray or on Dask",
     )
     benchmark.add_argument(
         "-ray_tmpdir",
         default="/tmp",
         help="Location where to keep Ray plasma store. "
-             "It should have enough space to keep -ray_memory",
+        "It should have enough space to keep -ray_memory",
     )
     benchmark.add_argument(
         "-ray_memory",
@@ -234,22 +272,15 @@ def main():
         dest="gpu_memory",
         type=int,
         help="specify the memory of your gpu, default 16. "
-             "(This controls the lines to be used. Also work for CPU version. )",
+        "(This controls the lines to be used. Also work for CPU version. )",
         default=16,
     )
     # MySQL database parameters
     mysql.add_argument(
-        "-db_server",
-        dest="db_server",
-        default="localhost",
-        help="Host name of MySQL server.",
+        "-db_server", dest="db_server", default="localhost", help="Host name of MySQL server.",
     )
     mysql.add_argument(
-        "-db_port",
-        dest="db_port",
-        default=3306,
-        type=int,
-        help="Port number of MySQL server.",
+        "-db_port", dest="db_port", default=3306, type=int, help="Port number of MySQL server.",
     )
     mysql.add_argument(
         "-db_user",
@@ -335,9 +366,7 @@ def main():
         conda_env = CondaEnvironment(args.env_name)
 
         print("PREPARING ENVIRONMENT")
-        combinate_requirements(
-            ibis_requirements, args.ci_requirements, requirements_file
-        )
+        combinate_requirements(ibis_requirements, args.ci_requirements, requirements_file)
         conda_env.create(args.env_check, requirements_file=requirements_file)
 
         if tasks["build"]:
@@ -358,9 +387,7 @@ def main():
                 "--database",
                 args.database_name,
             ]
-            report_file_name = (
-                f"report-{args.commit_ibis[:8]}-{args.commit_omnisci[:8]}.html"
-            )
+            report_file_name = f"report-{args.commit_ibis[:8]}-{args.commit_omnisci[:8]}.html"
             if not os.path.isdir(args.report_path):
                 os.makedirs(args.report_path)
             report_file_path = os.path.join(args.report_path, report_file_name)
@@ -385,6 +412,11 @@ def main():
                 omnisci_cwd=args.omnisci_cwd,
                 user=args.user,
                 password=args.password,
+                debug_timer=args.debug_timer,
+                columnar_output=args.columnar_output,
+                lazy_fetch=args.lazy_fetch,
+                multifrag_rs=args.multifrag_rs,
+                omnisci_run_kwargs=args.omnisci_run_kwargs,
             )
             omnisci_server.launch()
 
@@ -407,9 +439,7 @@ def main():
                 )
                 sys.exit(1)
 
-            benchmark_script_path = os.path.join(
-                omniscript_path, "run_ibis_benchmark.py"
-            )
+            benchmark_script_path = os.path.join(omniscript_path, "run_ibis_benchmark.py")
 
             benchmark_cmd = ["python3", benchmark_script_path]
 
@@ -447,6 +477,12 @@ def main():
                 "table",
                 "commit_omnisci",
                 "commit_ibis",
+                "import_mode",
+                "debug_timer",
+                "columnar_output",
+                "lazy_fetch",
+                "multifrag_rs",
+                "omnisci_run_kwargs",
             ]
             args_dict = vars(args)
             args_dict["data_file"] = f"'{args_dict['data_file']}'"
@@ -456,7 +492,17 @@ def main():
                     if pure_arg in possible_benchmark_args:
                         arg_value = args_dict[pure_arg]
                         if arg_value:
-                            benchmark_cmd.extend([arg_name, str(arg_value)])
+                            if type(arg_value) != dict:
+                                benchmark_cmd.extend([arg_name, str(arg_value)])
+                            else:
+                                benchmark_cmd.extend(
+                                    [
+                                        arg_name,
+                                        ",".join(
+                                            f"{key}={value}" for key, value in arg_value.items()
+                                        ),
+                                    ]
+                                )
                 except KeyError:
                     pass
 

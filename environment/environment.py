@@ -6,7 +6,7 @@ import sys
 try:
     from conda.cli.python_api import Commands, run_command
 except ImportError:
-    sys.exit('Please run the script from (base) conda environment')
+    sys.exit("Please run the script from (base) conda environment")
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from utils import execute_process
@@ -41,6 +41,7 @@ class CondaEnvironment:
         env_name = name if name else self.name
         if self.is_env_exist(env_name):
             if existence_check:
+                print("USING EXISTING ENVIRONMENT")
                 return
             else:
                 self.remove(env_name)
