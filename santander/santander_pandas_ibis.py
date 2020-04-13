@@ -94,12 +94,50 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     assert column_count == ibis_df.shape[1]
     assert row_count == ibis_df.shape[0]
 
+    pdf = pandas_df.sort_values(by=pandas_df.columns)
+    idf = ibis_df.sort_values(by=pandas_df.columns)
+
+    # to_idf_map = []
+    # idf_row = 0
+    # for pdf_row in range(row_count):
+    #     idf_id = None
+    #     for pandas_col_name in pandas_df.columns:
+    #         v = pdf.iloc[pdf_row, ]
+
+    mins = {}
+    maxes = {}
+    sums = {}
+    sq_sums = {}
     for pandas_col_name in pandas_df.columns:
-        pandas_col = pandas_df.loc[:, pandas_col_name]
-        ibis_col = ibis_df.loc[:, pandas_col_name]
-        print(pandas_col_name, ':', pandas_col.shape, '; ', ibis_col.shape)
+        pandas_col = pdf.loc[:, pandas_col_name]
+        ibis_col = idf.loc[:, pandas_col_name]
+        # print(pandas_col_name, ':', pandas_col.shape, '; ', ibis_col.shape)
+        for row in range(row_count):
+            pandas_value = pandas_col.iloc[row]
+            if isinstance(pandas_value, float):
+                ibis_value = ibis_col.iloc[row]
+                delta = abs(pandas_value - ibis_value)
+                sums[pandas_col_name] += delta
+                sq_sums[pandas_col_name] += delta * delta;
+                if pandas_col_name not in mins:
+                    mins[pandas_col_name] = delta
+                else:
+                    if delta < mins[pandas_col_name]:
+                        mins[pandas_col_name] = delta
+                if pandas_col_name not in maxes:
+                    maxes[pandas_col_name] = delta
+                else:
+                    if delta > maxes[pandas_col_name]:
+                        maxes[pandas_col_name] = delta
+    print('mins:', mins)
+    print('maxes:', maxes)
+    print('sums:', sums)
+    print('sq_sums:', sq_sums)
+    print('row count:', row_count)
 
 def compare_all_with_pandas_original():
+    import pandas as pd
+
     global x_train_pandas_original
     global y_train_pandas_original
     global x_valid_pandas_original
@@ -110,10 +148,15 @@ def compare_all_with_pandas_original():
     global x_valid_ibis_original
     global y_valid_ibis_original
 
+    concatenated_x_pandas_original = pd.concat(x_train_pandas_original, x_valid_pandas_original)
+    concatenated_x_ibis_original = pd.concat(x_train_ibis_original, x_valid_ibis_original)
+
     # y_train_ibis_original = y_train_ibis_original.rename(columns={"target0": "target"})
     # y_valid_ibis_original = y_valid_ibis_original.rename(columns={"target0": "target"})
+    # y_train_ibis_original = y_train_ibis_original.rename("target")
+    # y_valid_ibis_original = y_valid_ibis_original.rename("target")
 
-    compare_with_pandas_original('x_train_ibis_original vs x_train_ibis_original', x_train_pandas_original, x_train_ibis_original)
+    compare_with_pandas_original('concatenated_x_pandas_original vs concatenated_x_ibis_original', concatenated_x_pandas_original, concatenated_x_ibis_original)
 
 # Dataset link
 # https://www.kaggle.com/c/santander-customer-transaction-prediction/data
