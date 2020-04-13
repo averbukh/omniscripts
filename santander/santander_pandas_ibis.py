@@ -148,8 +148,8 @@ def compare_all_with_pandas_original():
     global x_valid_ibis_original
     global y_valid_ibis_original
 
-    concatenated_x_pandas_original = pd.concat(x_train_pandas_original, x_valid_pandas_original)
-    concatenated_x_ibis_original = pd.concat(x_train_ibis_original, x_valid_ibis_original)
+    concatenated_x_pandas_original = pd.concat([x_train_pandas_original, x_valid_pandas_original])
+    concatenated_x_ibis_original = pd.concat([x_train_ibis_original, x_valid_ibis_original])
 
     # y_train_ibis_original = y_train_ibis_original.rename(columns={"target0": "target"})
     # y_valid_ibis_original = y_valid_ibis_original.rename(columns={"target0": "target"})
