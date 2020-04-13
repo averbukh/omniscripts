@@ -119,18 +119,29 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
             if isinstance(pandas_value, float):
                 ibis_value = ibis_col.iloc[row]
                 delta = abs(pandas_value - ibis_value)
-                sums[pandas_col_name] += delta
-                sq_sums[pandas_col_name] += delta * delta;
+
+                if pandas_col_name not in sums:
+                    sums[pandas_col_name] = delta
+                else:
+                    sums[pandas_col_name] += delta
+
+                if pandas_col_name not in sq_sums:
+                    sq_sums[pandas_col_name] = delta * delta
+                else:
+                    sq_sums[pandas_col_name] += delta * delta
+
                 if pandas_col_name not in mins:
                     mins[pandas_col_name] = delta
                 else:
                     if delta < mins[pandas_col_name]:
                         mins[pandas_col_name] = delta
+
                 if pandas_col_name not in maxes:
                     maxes[pandas_col_name] = delta
                 else:
                     if delta > maxes[pandas_col_name]:
                         maxes[pandas_col_name] = delta
+
     print('mins:', mins)
     print('maxes:', maxes)
     print('sums:', sums)
