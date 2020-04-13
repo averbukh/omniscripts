@@ -94,10 +94,10 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     assert column_count == ibis_df.shape[1]
     assert row_count == ibis_df.shape[0]
 
-    pandas_df.columns = pandas_df.columns.str.strip()
-    ibis_df.columns = ibis_df.columns.str.strip()
-    pdf = pandas_df.sort_values(by=pandas_df.columns)
-    idf = ibis_df.sort_values(by=pandas_df.columns)
+    # pandas_df.columns = pandas_df.columns.str.strip()
+    # ibis_df.columns = ibis_df.columns.str.strip()
+    pdf = pandas_df.sort_values(by=list(pandas_df.columns))
+    idf = ibis_df.sort_values(by=list(pandas_df.columns))
 
     # to_idf_map = []
     # idf_row = 0
