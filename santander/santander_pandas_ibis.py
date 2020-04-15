@@ -120,6 +120,8 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     total_rel_min = None
     total_rel_max = 0.0
     total_rel_sum = 0.0
+    total_kahan_rel_sum = 0.0
+    total_kahan_rel_sum_compensation = 0.0
     total_rel_sq_sum = 0.0
     total_count = 0
     for pandas_col_name in pandas_df.columns:
@@ -196,20 +198,28 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
                         if rel_delta > rel_maxes[pandas_col_name]:
                             rel_maxes[pandas_col_name] = rel_delta
 
+                    kahan_y = rel_delta - total_kahan_rel_sum_compensation
+                    kahan_t = total_kahan_rel_sum + kahan_y
+                    total_kahan_rel_sum_compensation = (kahan_t - total_kahan_rel_sum) - kahan_y
+                    total_kahan_rel_sum = kahan_t
+
     print('mins:', mins)
     print('maxes:', maxes)
     print('sums:', sums)
     print('sq_sums:', sq_sums)
     print('counts:', counts)
+
     print('rel_mins:', rel_mins)
     print('rel_maxes:', rel_maxes)
     print('rel_sums:', rel_sums)
     print('rel_sq_sums:', rel_sq_sums)
+
     print('row count:', row_count)
 
     print('total_rel_min:', total_rel_min)
     print('total_rel_max:', total_rel_max)
     print('total_rel_sum:', total_rel_sum)
+    print('total_kahan_rel_sum:', total_kahan_rel_sum)
     print('total_rel_sq_sum:', total_rel_sq_sum)
     print('total_count:', total_count)
 
