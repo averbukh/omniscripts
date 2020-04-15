@@ -86,6 +86,8 @@ def pandas_original():
     print('  cod = ', score_cod)
 
 def compare_with_pandas_original(title, pandas_df, ibis_df):
+    import math
+
     print('[compare_with_pandas_original]', title)
 
     column_count = pandas_df.shape[1]
@@ -110,6 +112,10 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     maxes = {}
     sums = {}
     sq_sums = {}
+    rel_mins = {}
+    rel_maxes = {}
+    rel_sums = {}
+    rel_sq_sums = {}
     for pandas_col_name in pandas_df.columns:
         pandas_col = pdf.loc[:, pandas_col_name]
         ibis_col = idf.loc[:, pandas_col_name]
@@ -119,33 +125,62 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
             if isinstance(pandas_value, float):
                 ibis_value = ibis_col.iloc[row]
                 delta = abs(pandas_value - ibis_value)
+                rel_delta = abs(delta / pandas_value)
 
-                if pandas_col_name not in sums:
-                    sums[pandas_col_name] = delta
-                else:
-                    sums[pandas_col_name] += delta
+                if not math.isnan(delta):
+                    if pandas_col_name not in sums:
+                        sums[pandas_col_name] = delta
+                    else:
+                        sums[pandas_col_name] += delta
 
-                if pandas_col_name not in sq_sums:
-                    sq_sums[pandas_col_name] = delta * delta
-                else:
-                    sq_sums[pandas_col_name] += delta * delta
+                    if pandas_col_name not in sq_sums:
+                        sq_sums[pandas_col_name] = delta * delta
+                    else:
+                        sq_sums[pandas_col_name] += delta * delta
 
-                if pandas_col_name not in mins:
-                    mins[pandas_col_name] = delta
-                else:
-                    if delta < mins[pandas_col_name]:
+                    if pandas_col_name not in mins:
                         mins[pandas_col_name] = delta
+                    else:
+                        if delta < mins[pandas_col_name]:
+                            mins[pandas_col_name] = delta
 
-                if pandas_col_name not in maxes:
-                    maxes[pandas_col_name] = delta
-                else:
-                    if delta > maxes[pandas_col_name]:
+                    if pandas_col_name not in maxes:
                         maxes[pandas_col_name] = delta
+                    else:
+                        if delta > maxes[pandas_col_name]:
+                            maxes[pandas_col_name] = delta
+
+                if not math.isnan(rel_delta):
+                    if pandas_col_name not in rel_sums:
+                        rel_sums[pandas_col_name] = rel_delta
+                    else:
+                        rel_sums[pandas_col_name] += rel_delta
+
+                    if pandas_col_name not in rel_sq_sums:
+                        rel_sq_sums[pandas_col_name] = rel_delta * rel_delta
+                    else:
+                        rel_sq_sums[pandas_col_name] += rel_delta * rel_delta
+
+                    if pandas_col_name not in rel_mins:
+                        rel_mins[pandas_col_name] = rel_delta
+                    else:
+                        if rel_delta < rel_mins[pandas_col_name]:
+                            rel_mins[pandas_col_name] = rel_delta
+
+                    if pandas_col_name not in rel_maxes:
+                        rel_maxes[pandas_col_name] = rel_delta
+                    else:
+                        if rel_delta > rel_maxes[pandas_col_name]:
+                            rel_maxes[pandas_col_name] = rel_delta
 
     print('mins:', mins)
     print('maxes:', maxes)
     print('sums:', sums)
     print('sq_sums:', sq_sums)
+    print('rel_mins:', rel_mins)
+    print('rel_maxes:', rel_maxes)
+    print('rel_sums:', rel_sums)
+    print('rel_sq_sums:', rel_sq_sums)
     print('row count:', row_count)
 
 def compare_all_with_pandas_original():
