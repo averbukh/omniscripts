@@ -116,6 +116,11 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     rel_maxes = {}
     rel_sums = {}
     rel_sq_sums = {}
+    total_rel_min = None
+    total_rel_max = 0.0
+    total_rel_sum = 0.0
+    total_rel_sq_sum = 0.0
+    total_count = 0
     for pandas_col_name in pandas_df.columns:
         pandas_col = pdf.loc[:, pandas_col_name]
         ibis_col = idf.loc[:, pandas_col_name]
@@ -151,16 +156,28 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
                             maxes[pandas_col_name] = delta
 
                 if not math.isnan(rel_delta):
+                    total_count += 1
+
+                    total_rel_sum += rel_delta
                     if pandas_col_name not in rel_sums:
                         rel_sums[pandas_col_name] = rel_delta
                     else:
                         rel_sums[pandas_col_name] += rel_delta
 
+                    total_rel_sq_sum += rel_delta * rel_delta
                     if pandas_col_name not in rel_sq_sums:
                         rel_sq_sums[pandas_col_name] = rel_delta * rel_delta
                     else:
                         rel_sq_sums[pandas_col_name] += rel_delta * rel_delta
 
+                    if total_rel_min is None:
+                        total_rel_min = rel_delta
+                    else:
+                        if rel_delta < total_rel_min:
+                            total_rel_min = rel_delta
+
+                    if rel_delta > total_rel_max:
+                        total_rel_max = rel_delta
                     if pandas_col_name not in rel_mins:
                         rel_mins[pandas_col_name] = rel_delta
                     else:
@@ -182,6 +199,12 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     print('rel_sums:', rel_sums)
     print('rel_sq_sums:', rel_sq_sums)
     print('row count:', row_count)
+
+    print('total_rel_min:', total_rel_min)
+    print('total_rel_max:', total_rel_max)
+    print('total_rel_sum:', total_rel_sum)
+    print('total_rel_sq_sum:', total_rel_sq_sum)
+    print('total_count:', total_count)
 
 def compare_all_with_pandas_original():
     import pandas as pd
