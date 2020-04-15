@@ -112,6 +112,7 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     maxes = {}
     sums = {}
     sq_sums = {}
+    counts = {}
     rel_mins = {}
     rel_maxes = {}
     rel_sums = {}
@@ -133,6 +134,11 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
                 rel_delta = abs(delta / pandas_value)
 
                 if not math.isnan(delta):
+                    if pandas_col_name not in counts:
+                        counts[pandas_col_name] = 1
+                    else:
+                        counts[pandas_col_name] += 1
+
                     if pandas_col_name not in sums:
                         sums[pandas_col_name] = delta
                     else:
@@ -194,6 +200,7 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     print('maxes:', maxes)
     print('sums:', sums)
     print('sq_sums:', sq_sums)
+    print('counts:', counts)
     print('rel_mins:', rel_mins)
     print('rel_maxes:', rel_maxes)
     print('rel_sums:', rel_sums)
