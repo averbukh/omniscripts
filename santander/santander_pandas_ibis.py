@@ -124,6 +124,11 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     total_kahan_rel_sum_compensation = 0.0
     total_rel_sq_sum = 0.0
     total_count = 0
+    hist_max = 6e-08
+    hist_min = -hist_max
+    hist_bin_count = 20
+    hist_bin_step = (hist_max - hist_min) / hist_bin_count
+    hist = [0] * hist_bin_count
     for pandas_col_name in pandas_df.columns:
         pandas_col = pdf.loc[:, pandas_col_name]
         ibis_col = idf.loc[:, pandas_col_name]
@@ -134,6 +139,15 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
                 ibis_value = ibis_col.iloc[row]
                 delta = abs(pandas_value - ibis_value)
                 rel_delta = abs(delta / pandas_value)
+                signed_rel_delta = (ibis_value - pandas_value) / pandas_value
+
+                if not math.isnan(signed_rel_delta):
+                    assert signed_rel_delta >= hist_min
+                    assert signed_rel_delta <= hist_max
+                    bin_id = math.trunc((signed_rel_delta - hist_min) / hist_bin_step)
+                    assert bin_id >= 0
+                    assert bin_id < hist_bin_count
+                    hist[bin_id] += 1
 
                 if not math.isnan(delta):
                     if pandas_col_name not in counts:
@@ -222,6 +236,14 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
     print('total_kahan_rel_sum:', total_kahan_rel_sum)
     print('total_rel_sq_sum:', total_rel_sq_sum)
     print('total_count:', total_count)
+
+    print('Histogram:')
+    for bin_id in range(hist_bin_count):
+        print(bin_id,'[', hist_min + bin_id * hist_bin_step, ', ' hist_min + (bin_id + 1) * hist_bin_step, '):', hist[bin_id])
+    print('hist_min:', hist_min)
+    print('hist_max:', hist_max)
+    print('hist_bin_count:', hist_bin_count)
+    print('hist_bin_step:', hist_bin_step)
 
 def compare_all_with_pandas_original():
     import pandas as pd
