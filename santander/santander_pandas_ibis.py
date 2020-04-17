@@ -239,7 +239,7 @@ def compare_with_pandas_original(title, pandas_df, ibis_df):
 
     print('Histogram:')
     for bin_id in range(hist_bin_count):
-        print(bin_id,'[', hist_min + bin_id * hist_bin_step, ', ' hist_min + (bin_id + 1) * hist_bin_step, '):', hist[bin_id])
+        print(bin_id,'[', hist_min + bin_id * hist_bin_step, ', ', hist_min + (bin_id + 1) * hist_bin_step, '):', hist[bin_id])
     print('hist_min:', hist_min)
     print('hist_max:', hist_max)
     print('hist_bin_count:', hist_bin_count)
